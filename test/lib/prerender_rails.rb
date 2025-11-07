@@ -257,4 +257,39 @@ it "should return a prerendered response stripped of custom-defined hop-by-hop h
     end
   end
 
+  describe "#build_http_client" do
+    it "should set use_ssl for https uri" do
+      @prerender = Rack::Prerender.new(@app)
+      uri = URI.parse("https://google.com/search?q=javascript")
+      http_client = @prerender.build_http_client(uri)
+
+      assert_equal true, http_client.use_ssl?
+    end
+
+    it "should set use_ssl for http uri" do
+      @prerender = Rack::Prerender.new(@app)
+      uri = URI.parse("http://google.com/search?q=javascript")
+      http_client = @prerender.build_http_client(uri)
+
+      assert_equal false, http_client.use_ssl?
+    end
+
+    it "should use global timeout if provided" do
+      @prerender = Rack::Prerender.new(@app, timeout: 10)
+      uri = URI.parse("https://google.com/search?q=javascript")
+      http_client = @prerender.build_http_client(uri)
+
+      assert_equal 10, http_client.open_timeout
+      assert_equal 10, http_client.read_timeout
+    end
+
+    it "should respect open_timeout" do
+      @prerender = Rack::Prerender.new(@app, open_timeout: 5, read_timeout: 10)
+      uri = URI.parse("https://google.com/search?q=javascript")
+      http_client = @prerender.build_http_client(uri)
+
+      assert_equal 5, http_client.open_timeout
+      assert_equal 10, http_client.read_timeout
+    end
+  end
 end

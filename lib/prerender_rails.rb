@@ -99,6 +99,11 @@ module Rack
       @options[:blacklist] = [@options[:blacklist]] if @options[:blacklist].is_a? String
       @extensions_to_ignore = @options[:extensions_to_ignore] if @options[:extensions_to_ignore]
       @crawler_user_agents = @options[:crawler_user_agents] if @options[:crawler_user_agents]
+
+      timeout = options.delete(:timeout)
+      @options[:open_timeout] = @options[:open_timeout] || timeout
+      @options[:read_timeout] = @options[:read_timeout] || timeout
+
       @app = app
     end
 
@@ -181,11 +186,9 @@ module Rack
         }
         headers['X-Prerender-Token'] = ENV['PRERENDER_TOKEN'] if ENV['PRERENDER_TOKEN']
         headers['X-Prerender-Token'] = @options[:prerender_token] if @options[:prerender_token]
-        req = Net::HTTP::Get.new(url.request_uri, headers)
-        req.basic_auth(ENV['PRERENDER_USERNAME'], ENV['PRERENDER_PASSWORD']) if @options[:basic_auth]
-        http = Net::HTTP.new(url.host, url.port)
-        http.use_ssl = true if url.scheme == 'https'
-        response = http.request(req)
+
+        http = build_http_client(url)
+        response = http.request(build_http_request(url, headers))
         if response['Content-Encoding'] == 'gzip'
           response.body = ActiveSupport::Gzip.decompress(response.body)
           response['Content-Length'] = response.body.bytesize
@@ -210,6 +213,19 @@ module Rack
       end
     end
 
+    def build_http_request(uri, headers)
+      Net::HTTP::Get.new(uri.request_uri, headers).tap do |req|
+        req.basic_auth(ENV["PRERENDER_USERNAME"], ENV["PRERENDER_PASSWORD"]) if @options[:basic_auth]
+      end
+    end
+
+    def build_http_client(uri)
+      Net::HTTP.new(uri.host, uri.port).tap do |http|
+        http.use_ssl = true if uri.scheme == "https"
+        http.open_timeout = @options[:open_timeout] if @options[:open_timeout]
+        http.read_timeout = @options[:read_timeout] if @options[:read_timeout]
+      end
+    end
 
     def build_api_url(env)
       new_env = env
